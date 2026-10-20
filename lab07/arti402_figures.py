@@ -31,6 +31,12 @@ __all__ = [
     # Lab 4
     "draw_unrolled_rnn", "draw_repeated_multiplication", "draw_lstm_cell",
     "draw_recurrent_params", "draw_lab4_pipeline",
+    # Lab 5
+    "draw_spiral_data", "draw_optimizer_family", "draw_valley_paths",
+    "draw_loss_curves", "draw_decision_boundaries",
+    # Lab 6
+    "draw_overfitting_curves", "draw_weight_histograms", "draw_init_depth",
+    "draw_batchnorm_effect",
 ]
 
 # ----------------------------------------------------------------- palette
@@ -603,3 +609,249 @@ def draw_lab4_pipeline():
         ("dense\n-> softmax", "(3,)", 39, "out"),
     ], "Lab 4 pipeline: read the final hidden state, train only the head",
        figw=11.0)
+
+
+# =====================================================================
+#                              LAB 5 FIGURES
+# =====================================================================
+OPT_COLORS = {"SGD": "#7F8C8D", "SGD + decay": "#B7950B", "SGD + momentum": "#E67E22",
+              "RMSProp": "#27AE60", "Adam": "#2E86C1"}
+
+
+def _opt_color(name, i=0):
+    """Fixed colour per optimizer name, so every figure agrees."""
+    return OPT_COLORS.get(name, ["#7F8C8D", "#B7950B", "#E67E22", "#27AE60",
+                                 "#2E86C1", "#8E44AD"][i % 6])
+
+
+# ----------------------------------------------------------------- FIG 10
+def draw_spiral_data(X, y, title="The spiral dataset: 3 classes, 2 features"):
+    fig, ax = plt.subplots(figsize=(4.8, 4.6))
+    ax.scatter(X[:, 0], X[:, 1], c=y, cmap="brg", s=16, edgecolor="k", lw=.3)
+    ax.set_title(title, fontsize=11, weight="bold")
+    ax.set_xlabel("feature 1"); ax.set_ylabel("feature 2")
+    ax.set_aspect("equal"); ax.grid(alpha=.25)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 11
+def draw_optimizer_family():
+    """How the four optimizers relate: each fixes a weakness of the last."""
+    fig, ax = plt.subplots(figsize=(12.5, 4.3))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 4.6); ax.axis("off")
+
+    def card(x, y, w, h, title, body, col):
+        ax.add_patch(Rectangle((x, y), w, h, facecolor=col, edgecolor=EDGE, lw=1.3,
+                               alpha=.9, zorder=3))
+        ax.text(x + w / 2, y + h - .32, title, ha="center", va="center",
+                fontsize=11, weight="bold", zorder=4)
+        ax.text(x + w / 2, y + (h - .5) / 2, body, ha="center", va="center",
+                fontsize=8.6, linespacing=1.35, zorder=4)
+
+    card(.2, 1.55, 2.6, 1.55, "SGD",
+         "step = -lr × gradient\n\nsame step size for\nevery parameter", "#E5E7E9")
+    card(3.6, 2.75, 2.9, 1.55, "+ Momentum",
+         "remembers the DIRECTION\nit has been moving\n\nsmooths the zig-zag", "#FAD7A0")
+    card(3.6, .25, 2.9, 1.55, "RMSProp",
+         "remembers how BIG each\nparameter's gradients are\n\nits own step size each", "#ABEBC6")
+    card(7.5, 1.5, 2.6, 1.65, "Adam",
+         "momentum\n+\nRMSProp\n(+ a start-up correction)", "#AED6F1")
+    ax.text(11.6, 2.32, "the usual\nfirst choice\ntoday", ha="center", va="center",
+            fontsize=9.5, style="italic", color="#1B4F72")
+
+    for (x0, y0, x1, y1) in [(2.8, 2.55, 3.6, 3.3), (2.8, 2.1, 3.6, 1.3),
+                             (6.5, 3.4, 7.5, 2.75), (6.5, 1.1, 7.5, 1.95)]:
+        _arr(ax, x0, y0, x1, y1, lw=1.6)
+    _arr(ax, 10.1, 2.32, 10.95, 2.32, lw=1.4)
+    ax.set_title("Each optimizer fixes a weakness of the one before", fontsize=13,
+                 weight="bold", pad=2)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 12
+def draw_valley_paths(paths, loss_fn, xlim=(-5.2, 1.4), ylim=(-1.6, 1.6)):
+    """Contours of a 2-parameter loss, with each optimizer's path drawn on it.
+
+    paths   : dict  name -> array of shape (steps + 1, 2)
+    loss_fn : function taking a length-2 array, returning the loss
+    """
+    n = len(paths)
+    fig, axes = plt.subplots(1, n, figsize=(4.1 * n, 3.6), squeeze=False)
+    gx = np.linspace(*xlim, 220); gy = np.linspace(*ylim, 220)
+    GX, GY = np.meshgrid(gx, gy)
+    Z = np.array([[loss_fn(np.array([a, b])) for a in gx] for b in gy])
+    levels = np.geomspace(max(Z.min(), 1e-3) + 1e-3, Z.max(), 14)
+    for i, (ax, (name, P)) in enumerate(zip(axes[0], paths.items())):
+        ax.contour(GX, GY, Z, levels=levels, colors="#BBBBBB", linewidths=.7)
+        col = _opt_color(name, i)
+        ax.plot(P[:, 0], P[:, 1], "-", color=col, lw=1.6, zorder=3)
+        ax.plot(P[:, 0], P[:, 1], "o", color=col, ms=2.6, zorder=4)
+        ax.plot(*P[0], "s", color="k", ms=6, zorder=5)
+        ax.plot(0, 0, "*", color="#C0392B", ms=13, zorder=5)
+        ax.set_title(f"{name}\nloss after {len(P) - 1} steps: {loss_fn(P[-1]):.4f}",
+                     fontsize=9.8, weight="bold")
+        ax.set_xlim(*xlim); ax.set_ylim(*ylim)
+        ax.set_xticks([]); ax.set_yticks([])
+    axes[0][0].text(xlim[0] + .1, ylim[0] + .1, "■ start   ★ minimum", fontsize=8,
+                    color="#333")
+    fig.suptitle("The same narrow valley, four ways down", fontsize=12.5,
+                 weight="bold", y=1.02)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 13
+def draw_loss_curves(histories, title="Training curves"):
+    """histories : dict name -> list of (epoch, loss, accuracy)."""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 3.9))
+    for i, (name, h) in enumerate(histories.items()):
+        h = np.array(h)
+        col = _opt_color(name, i)
+        axes[0].plot(h[:, 0], h[:, 1], lw=2, color=col, label=name)
+        axes[1].plot(h[:, 0], h[:, 2], lw=2, color=col, label=name)
+    axes[0].set_title("Loss (lower is better)", weight="bold")
+    axes[1].set_title("Accuracy on training data", weight="bold")
+    axes[0].axhline(np.log(3), color="grey", ls="--", lw=.9)
+    axes[1].axhline(1 / 3, color="grey", ls="--", lw=.9)
+    axes[1].set_ylim(0, 1.02)
+    for ax in axes:
+        ax.set_xlabel("epoch"); ax.grid(alpha=.3)
+    axes[1].legend(fontsize=8.5, loc="lower right")
+    fig.suptitle(title, fontsize=12.5, weight="bold", y=1.02)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 14
+def draw_decision_boundaries(predict_fns, X, y, resolution=180):
+    """predict_fns : dict name -> function(points (n,2)) -> class ids (n,)"""
+    n = len(predict_fns)
+    fig, axes = plt.subplots(1, n, figsize=(4.2 * n, 4.1), squeeze=False)
+    pad = .15
+    gx = np.linspace(X[:, 0].min() - pad, X[:, 0].max() + pad, resolution)
+    gy = np.linspace(X[:, 1].min() - pad, X[:, 1].max() + pad, resolution)
+    GX, GY = np.meshgrid(gx, gy)
+    grid = np.c_[GX.ravel(), GY.ravel()]
+    for ax, (name, fn) in zip(axes[0], predict_fns.items()):
+        Zc = fn(grid).reshape(GX.shape)
+        ax.contourf(GX, GY, Zc, levels=[-.5, .5, 1.5, 2.5], cmap="brg", alpha=.22)
+        ax.scatter(X[:, 0], X[:, 1], c=y, cmap="brg", s=11, edgecolor="k", lw=.25)
+        acc = np.mean(fn(X) == y)
+        ax.set_title(f"{name}\ntraining accuracy {acc:.3f}", fontsize=10, weight="bold")
+        ax.set_xticks([]); ax.set_yticks([]); ax.set_aspect("equal")
+    fig.suptitle("What each network actually learned", fontsize=12.5,
+                 weight="bold", y=1.02)
+    plt.tight_layout()
+    return fig
+
+
+# =====================================================================
+#                              LAB 6 FIGURES
+# =====================================================================
+TRAIN_C = "#2E86C1"
+VAL_C = "#C0392B"
+
+
+# ----------------------------------------------------------------- FIG 15
+def draw_overfitting_curves(history, title="Training vs validation"):
+    """history : list of (epoch, train_loss, train_acc, val_loss, val_acc)."""
+    h = np.array(history, dtype=float)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 3.9))
+
+    axes[0].plot(h[:, 0], h[:, 1], lw=2, color=TRAIN_C, label="training")
+    axes[0].plot(h[:, 0], h[:, 3], lw=2, color=VAL_C, label="validation")
+    axes[0].set_title("Loss (lower is better)", weight="bold")
+
+    axes[1].plot(h[:, 0], h[:, 2], lw=2, color=TRAIN_C, label="training")
+    axes[1].plot(h[:, 0], h[:, 4], lw=2, color=VAL_C, label="validation")
+    axes[1].axhline(1 / 3, color="grey", ls="--", lw=.9)
+    axes[1].set_ylim(0, 1.03)
+    axes[1].set_title("Accuracy (higher is better)", weight="bold")
+
+    # mark where validation loss bottoms out
+    best = int(np.argmin(h[:, 3]))
+    axes[0].axvline(h[best, 0], color="#7D3C98", ls=":", lw=1.6)
+    axes[0].annotate(f"best validation loss\nepoch {int(h[best, 0])}",
+                     xy=(h[best, 0], h[best, 3]), xytext=(0.42, 0.78),
+                     textcoords="axes fraction", fontsize=8.5, color="#7D3C98",
+                     arrowprops=dict(arrowstyle="->", color="#7D3C98", lw=1.1))
+
+    gap = h[-1, 2] - h[-1, 4]
+    axes[1].annotate(f"gap = {gap:+.2f}", xy=(h[-1, 0], (h[-1, 2] + h[-1, 4]) / 2),
+                     xytext=(0.55, 0.35), textcoords="axes fraction",
+                     fontsize=9.5, weight="bold", color="#555")
+    axes[1].fill_between(h[:, 0], h[:, 2], h[:, 4], color="#999", alpha=.15)
+
+    for ax in axes:
+        ax.set_xlabel("epoch"); ax.grid(alpha=.3); ax.legend(fontsize=9)
+    fig.suptitle(title, fontsize=12.5, weight="bold", y=1.02)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 16
+def draw_weight_histograms(weight_sets, bins=60, clip=3.0):
+    """weight_sets : dict name -> 1-D array of weights."""
+    n = len(weight_sets)
+    fig, axes = plt.subplots(1, n, figsize=(4.3 * n, 3.4), squeeze=False)
+    cols = ["#7F8C8D", "#27AE60", "#2E86C1", "#8E44AD"]
+    for i, (ax, (name, w)) in enumerate(zip(axes[0], weight_sets.items())):
+        w = np.asarray(w).ravel()
+        ax.hist(np.clip(w, -clip, clip), bins=bins, color=cols[i % 4],
+                edgecolor="none")
+        near0 = np.mean(np.abs(w) < 0.01)
+        ax.set_title(f"{name}\n{near0:.0%} of weights are ~0   "
+                     f"(largest {np.abs(w).max():.1f})",
+                     fontsize=9.8, weight="bold")
+        ax.axvline(0, color="k", lw=.8)
+        ax.set_yscale("log")
+        ax.set_xlabel("weight value"); ax.grid(alpha=.25)
+    axes[0][0].set_ylabel("count (log scale)")
+    fig.suptitle("What each penalty does to the weights", fontsize=12.5,
+                 weight="bold", y=1.03)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 17
+def draw_init_depth(curves, title="Activation size through a deep network"):
+    """curves : dict name -> list of activation standard deviations per layer."""
+    fig, ax = plt.subplots(figsize=(7.6, 4.2))
+    styles = {"too small": ("#2471A3", "o-"), "just right (He)": ("#27AE60", "s-"),
+              "too large": ("#C0392B", "^-")}
+    for i, (name, vals) in enumerate(curves.items()):
+        col, mk = styles.get(name, (["#7F8C8D", "#B7950B", "#8E44AD"][i % 3], "o-"))
+        ax.semilogy(range(len(vals)), np.maximum(vals, 1e-300), mk, lw=2,
+                    color=col, ms=4, label=name)
+    ax.axhline(1.0, color="grey", ls="--", lw=1)
+    ax.set_xlabel("layer"); ax.set_ylabel("standard deviation of activations (log)")
+    ax.set_title(title, fontsize=12, weight="bold")
+    ax.grid(alpha=.3, which="both"); ax.legend(fontsize=9.5)
+    plt.tight_layout()
+    return fig
+
+
+# ----------------------------------------------------------------- FIG 18
+def draw_batchnorm_effect(before, after, scaled=None):
+    """Histograms of one layer's values before and after batch normalisation."""
+    panels = [("before batch norm", before, "#C0392B"),
+              ("after normalising", after, "#27AE60")]
+    if scaled is not None:
+        panels.append(("after scale & shift\n(gamma, beta)", scaled, "#2E86C1"))
+    fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels), 3.3),
+                             squeeze=False)
+    lo = min(np.min(p[1]) for p in panels) - .5
+    hi = max(np.max(p[1]) for p in panels) + .5
+    for ax, (name, vals, col) in zip(axes[0], panels):
+        vals = np.asarray(vals).ravel()
+        ax.hist(vals, bins=40, range=(lo, hi), color=col, edgecolor="none")
+        ax.axvline(vals.mean(), color="k", lw=1.6)
+        ax.set_title(f"{name}\nmean {vals.mean():+.2f}   std {vals.std():.2f}",
+                     fontsize=9.8, weight="bold")
+        ax.set_xlim(lo, hi); ax.grid(alpha=.25)
+    fig.suptitle("Batch normalisation, one layer", fontsize=12.5, weight="bold",
+                 y=1.04)
+    plt.tight_layout()
+    return fig
